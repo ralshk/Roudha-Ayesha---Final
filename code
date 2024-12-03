@@ -1,0 +1,158 @@
+class CustomerApp:
+    '''GUI for Customer interactions.'''
+
+    def __init__(self, root, system, app_selector):
+        self.root = root
+        self.system = system
+        self.app_selector = app_selector  # Reference to the AppSelector for navigation
+        self.current_user = None  # Current logged-in customer
+        self.create_login_screen()
+
+    def clear_screen(self):
+        '''Clears all widgets from the root window.'''
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+    def create_login_screen(self):
+        '''Creates the login screen for customers.'''
+        self.clear_screen()
+        tk.Label(self.root, text="Customer Login", font=("Arial", 20)).pack(pady=10)
+
+        # Input fields for username and password
+        tk.Label(self.root, text="Username:").pack()
+        self.username_entry = tk.Entry(self.root)
+        self.username_entry.pack()
+
+        tk.Label(self.root, text="Password:").pack()
+        self.password_entry = tk.Entry(self.root, show="*")
+        self.password_entry.pack()
+
+        # Buttons for Login, Register, and Back to main menu
+        tk.Button(self.root, text="Login", command=self.login).pack(pady=5)
+        tk.Button(self.root, text="Register", command=self.create_register_screen).pack(pady=5)
+        tk.Button(self.root, text="Back", command=self.app_selector.create_main_screen).pack(pady=5)
+
+    def login(self):
+        '''Handles customer login.'''
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        # Check credentials for all registered customers
+        for customer in self.system.customers.values():
+            if customer.login(username, password):
+                self.current_user = customer  # Set the current user as the logged-in customer
+                self.create_dashboard()  # Navigate to customer dashboard
+                return
+
+        # Show error if credentials are invalid
+        messagebox.showerror("Error", "Invalid username or password")
+
+    def create_register_screen(self):
+        '''Creates the registration screen for new customers.'''
+        self.clear_screen()
+        tk.Label(self.root, text="Customer Registration", font=("Arial", 20)).pack(pady=10)
+
+        # Input fields for username and password
+        tk.Label(self.root, text="Username:").pack()
+        self.register_username_entry = tk.Entry(self.root)
+        self.register_username_entry.pack()
+
+        tk.Label(self.root, text="Password:").pack()
+        self.register_password_entry = tk.Entry(self.root, show="*")
+        self.register_password_entry.pack()
+
+        # Buttons for Register and Back to login
+        tk.Button(self.root, text="Register", command=self.register).pack(pady=5)
+        tk.Button(self.root, text="Back", command=self.create_login_screen).pack(pady=5)
+
+    def register(self):
+        '''Handles customer registration.'''
+        username = self.register_username_entry.get()
+        password = self.register_password_entry.get()
+
+        # Validation and registration logic
+        if username and password:
+            account_id = len(self.system.customers) + 1  # Generate a unique customer ID
+            new_customer = Customer(username, password, account_id)
+            self.system.add_customer(new_customer)
+            self.system.save_data("ticket_booking_system.pkl")  # Save customer data
+            messagebox.showinfo("Success", "Customer registered successfully!")
+            self.create_login_screen()
+        else:
+            messagebox.showerror("Error", "Please fill in all fields")
+
+    def create_dashboard(self):
+        '''Creates the customer dashboard.'''
+        self.clear_screen()
+        tk.Label(self.root, text=f"Welcome, {self.current_user.username}", font=("Arial", 16)).pack(pady=10)
+
+        # Buttons for Customer options
+        tk.Button(self.root, text="Purchase Ticket", command=self.create_ticket_purchase_screen).pack(pady=5)
+        tk.Button(self.root, text="View Purchase History", command=self.view_purchase_history).pack(pady=5)
+        tk.Button(self.root, text="Logout", command=self.create_login_screen).pack(pady=5)
+
+    def create_ticket_purchase_screen(self):
+        '''Creates the ticket purchase screen.'''
+        self.clear_screen()
+        tk.Label(self.root, text="Purchase Ticket", font=("Arial", 20)).pack(pady=10)
+
+        # Dropdown menu for ticket selection
+        self.ticket_var = tk.StringVar(value="Select a Ticket")
+        tickets = [ticket.ticket_type for ticket in self.system.tickets]
+        tk.OptionMenu(self.root, self.ticket_var, *tickets).pack(pady=5)
+
+        # Input field for payment method
+        tk.Label(self.root, text="Payment Method:").pack()
+        self.payment_method_entry = tk.Entry(self.root)
+        self.payment_method_entry.pack()
+
+        # Buttons to confirm purchase or go back
+        tk.Button(self.root, text="Confirm Purchase", command=self.purchase_ticket).pack(pady=5)
+        tk.Button(self.root, text="Back", command=self.create_dashboard).pack(pady=5)
+
+    def purchase_ticket(self):
+        '''Processes the ticket purchase for the customer.'''
+        ticket_type = self.ticket_var.get()
+        payment_method = self.payment_method_entry.get()
+
+        # Validation for ticket selection and payment method
+        if ticket_type == "Select a Ticket" or not payment_method:
+            messagebox.showerror("Error", "Please select a ticket and enter a payment method")
+            return
+
+        # Create a new booking
+        selected_ticket = next(ticket for ticket in self.system.tickets if ticket.ticket_type == ticket_type)
+        booking = self.system.create_booking(self.current_user.account_id, selected_ticket, payment_method)
+        self.system.save_data("ticket_booking_system.pkl")  # Save booking data
+        messagebox.showinfo("Success", f"Ticket purchased! Booking ID: {booking.booking_id}")
+        self.create_dashboard()
+
+    def view_purchase_history(self):
+        '''Displays the purchase history for the logged-in customer.'''
+        self.clear_screen()
+        tk.Label(self.root, text="Purchase History", font=("Arial", 20)).pack(pady=10)
+
+        # Display all bookings in the purchase history
+        for booking in self.current_user.view_purchase_history():
+            tk.Label(self.root, text=f"Booking ID: {booking.booking_id}, Ticket: {booking.ticket.ticket_type}, Date: {booking.date}").pack()
+
+        # Button to go back to customer dashboard
+        tk.Button(self.root, text="Back", command=self.create_dashboard).pack(pady=5)
+
+
+if __name__ == "__main__":
+    # Initialize the ticket booking system
+    system = TicketBookingSystem()
+
+    # Add a default admin for testing
+    admin = Admin("admin", "admin123", 101)
+    system.add_admin(admin)
+
+    # Save the initial system state
+    system.save_data("ticket_booking_system.pkl")
+
+    # Start the application
+    root = tk.Tk()
+    root.title("Ticket Booking System")
+    AppSelector(root, system)
+    root.mainloop()
